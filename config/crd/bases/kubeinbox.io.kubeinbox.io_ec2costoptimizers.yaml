@@ -1,0 +1,71 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.10.0
+  creationTimestamp: null
+  name: ec2costoptimizers.kubeinbox.io.kubeinbox.io
+spec:
+  group: kubeinbox.io.kubeinbox.io
+  names:
+    kind: Ec2CostOptimizer
+    listKind: Ec2CostOptimizerList
+    plural: ec2costoptimizers
+    singular: ec2costoptimizer
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Ec2CostOptimizer is the Schema for the ec2costoptimizers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Ec2CostOptimizerSpec defines the desired state of Ec2CostOptimizer
+            properties:
+              instance_id:
+                description: StopInstanceID on which start/stop operations has to
+                  be performed
+                type: string
+              operation:
+                description: START/STOP operation
+                type: string
+              schedule_window:
+                description: Scheduled window time frame
+                type: string
+              window_type:
+                description: OnDemand/Scheduled window
+                type: string
+            required:
+            - instance_id
+            - operation
+            - window_type
+            type: object
+          status:
+            description: Ec2CostOptimizerStatus defines the observed state of Ec2CostOptimizer
+            properties:
+              instance_id:
+                description: InstanceID is unique identifier for aws-ec2 instance.
+                type: string
+              state:
+                description: Status represents current state of machine, RUNNING,
+                  STOPPED.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

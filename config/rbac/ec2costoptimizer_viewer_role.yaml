@@ -1,0 +1,27 @@
+# permissions for end users to view ec2costoptimizers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ec2costoptimizer-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: aws-utility-controller
+    app.kubernetes.io/part-of: aws-utility-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: ec2costoptimizer-viewer-role
+rules:
+- apiGroups:
+  - kubeinbox.io.kubeinbox.io
+  resources:
+  - ec2costoptimizers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kubeinbox.io.kubeinbox.io
+  resources:
+  - ec2costoptimizers/status
+  verbs:
+  - get

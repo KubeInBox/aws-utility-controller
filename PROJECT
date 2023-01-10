@@ -1,0 +1,16 @@
+domain: kubeinbox.io
+layout:
+- go.kubebuilder.io/v3
+projectName: aws-utility-controller
+repo: github.com/KubeInBox/aws-utility-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kubeinbox.io
+  group: kubeinbox.io
+  kind: Ec2CostOptimizer
+  path: github.com/KubeInBox/aws-utility-controller/api/v1alpha1
+  version: v1alpha1
+version: "3"

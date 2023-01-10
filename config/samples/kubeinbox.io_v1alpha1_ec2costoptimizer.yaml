@@ -1,0 +1,12 @@
+apiVersion: kubeinbox.io.kubeinbox.io/v1alpha1
+kind: Ec2CostOptimizer
+metadata:
+  labels:
+    app.kubernetes.io/name: ec2costoptimizer
+    app.kubernetes.io/instance: ec2costoptimizer-sample
+    app.kubernetes.io/part-of: aws-utility-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: aws-utility-controller
+  name: ec2costoptimizer-sample
+spec:
+  # TODO(user): Add fields here
