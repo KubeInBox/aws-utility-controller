@@ -35,21 +35,34 @@ spec:
           spec:
             description: Ec2CostOptimizerSpec defines the desired state of Ec2CostOptimizer
             properties:
-              instance_id:
+              end_time_window:
+                description: Scheduled end time window, should be valid  end time,
+                  supported timezone is IST
+                type: string
+              instance_ids:
                 description: StopInstanceID on which start/stop operations has to
                   be performed
-                type: string
+                items:
+                  type: string
+                type: array
               operation:
                 description: START/STOP operation
+                enum:
+                - Start
+                - Stopped
                 type: string
-              schedule_window:
-                description: Scheduled window time frame
+              start_time_window:
+                description: Scheduled start time window, should be valid  start time,
+                  supported timezone is IST
                 type: string
               window_type:
                 description: OnDemand/Scheduled window
+                enum:
+                - OnDemand
+                - Scheduled
                 type: string
             required:
-            - instance_id
+            - instance_ids
             - operation
             - window_type
             type: object

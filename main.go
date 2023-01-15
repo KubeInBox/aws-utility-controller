@@ -2,13 +2,20 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"runtime"
+	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -21,7 +28,7 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	scheme   = k8sruntime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
 
@@ -76,6 +83,7 @@ func main() {
 	if err = (&controllers.Ec2CostOptimizerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Logger: newLogger(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Ec2CostOptimizer")
 		os.Exit(1)
@@ -96,4 +104,31 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func newLogger() *logrus.Logger {
+	const filePathPrefix = "/go/src/github.com/KubeInBox/aws-utility-controller/"
+	logger := logrus.StandardLogger()
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+		CallerPrettyfier: func(fr *runtime.Frame) (function string, file string) {
+			// trim the prefixes and ignore file path for vendor logs
+			file = fmt.Sprintf("%s:%d", strings.TrimPrefix(fr.File, filePathPrefix), fr.Line)
+			if strings.HasPrefix(file, "vendor") {
+				file = ""
+			}
+			return
+		},
+	})
+
+	logger.SetReportCaller(true)
+	// Set the log level on the default logger based on command line flag
+	if level, err := logrus.ParseLevel(viper.GetString("logging.level")); err != nil {
+		logger.Errorf("Invalid %q provided for log level", viper.GetString("logging.level"))
+		logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.SetLevel(level)
+	}
+
+	return logger
 }
