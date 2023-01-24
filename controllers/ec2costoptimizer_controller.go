@@ -40,10 +40,9 @@ func (r *Ec2CostOptimizerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-
+	logr := r.Logger.WithContext(ctx).WithField("object", req.NamespacedName)
 	// your logic here
 	logger.WithValues("object", req.NamespacedName)
-	r.Logger.WithField("object", req.NamespacedName)
 	logger.Info("Reconciling Ec2CostOptimizer ...")
 
 	ec2CostOptimizer := &costoptimizerv1alpha1.Ec2CostOptimizer{}
@@ -62,13 +61,13 @@ func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	switch ec2CostOptimizer.Spec.WindowType {
 	case costoptimizerv1alpha1.OnDemand:
-		r.Logger.Infof("Handling ondemand ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
+		logr.Infof("Handling ondemand ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
 		if err = r.handleOnDemandEc2Oprn(ec2CostOptimizer); err != nil {
 			logger.V(1).Error(err, "error processing onDemand ec2 operation")
 			return ctrl.Result{}, err
 		}
 	case costoptimizerv1alpha1.Scheduled:
-		r.Logger.Infof("Handling scheduled ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
+		logr.Infof("Handling scheduled ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
 		if err = r.handleScheduledEc2Oprn(ec2CostOptimizer); err != nil {
 			logger.V(1).Error(err, "error processing onDemand ec2 operation")
 			return ctrl.Result{}, err
@@ -95,7 +94,7 @@ func (r *Ec2CostOptimizerReconciler) handleOnDemandEc2Oprn(ec2CostOptimizer *cos
 			return err
 		}
 	default:
-		logrus.Info("invalid ec2 operation type specified for resource %s/%s", ec2CostOptimizer.GetNamespace(), ec2CostOptimizer.GetName())
+		logrus.Infof("invalid ec2 operation type specified for resource %s/%s", ec2CostOptimizer.GetNamespace(), ec2CostOptimizer.GetName())
 	}
 	return nil
 }

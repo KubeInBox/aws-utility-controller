@@ -8,5 +8,10 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: aws-utility-controller
   name: ec2costoptimizer-sample
+  namespace: kubeinbox
 spec:
-  # TODO(user): Add fields here
+  instance_ids:
+    - skp-1
+    - skp-2
+  operation: "Start"
+  window_type: "OnDemand"

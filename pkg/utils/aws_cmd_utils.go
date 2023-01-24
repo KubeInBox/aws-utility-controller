@@ -41,3 +41,11 @@ func StopEc2Instance(instanceIDs []string) error {
 	log.Info("successfully stopped ec2 instances")
 	return nil
 }
+
+// TODO:
+// p1: Create Helm chart :  joy
+// p2: parse aws credentials from end user
+// p2: Validations on CRs Fields.
+// p1: Modify Dockerfile to add aws cli. : akshay
+// p1: start/stop ec2 in counter part of schedule time window. joy,akshay,Shani
+// p1: what if user want onDemand in schedule window ? joy,akshay,Shani

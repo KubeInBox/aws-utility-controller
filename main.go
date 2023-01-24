@@ -107,7 +107,7 @@ func main() {
 }
 
 func newLogger() *logrus.Logger {
-	const filePathPrefix = "/go/src/github.com/KubeInBox/aws-utility-controller/"
+	const filePathPrefix = "/workspace/"
 	logger := logrus.StandardLogger()
 	logrus.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: time.RFC3339Nano,
