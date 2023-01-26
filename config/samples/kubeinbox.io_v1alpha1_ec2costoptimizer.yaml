@@ -7,11 +7,36 @@ metadata:
     app.kubernetes.io/part-of: aws-utility-controller
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: aws-utility-controller
-  name: ec2costoptimizer-sample
+  name: ec2costoptimizer-sample-ondemand
   namespace: kubeinbox
 spec:
   instance_ids:
-    - skp-1
-    - skp-2
-  operation: "Start"
+    - i-0b7ff2259ac5f2d9e
+  operation: "Stop"
   window_type: "OnDemand"
+---
+apiVersion: kubeinbox.io.kubeinbox.io/v1alpha1
+kind: Ec2CostOptimizer
+metadata:
+  name: ec2costoptimizer-sample-scheduled-1
+  namespace: kubeinbox
+spec:
+  instance_ids:
+    - i-0b7ff2259ac5f2d9e
+  operation: "Stop"
+  window_type: "Scheduled"
+  start_time_window: "18:16:00"
+  end_time_window: "18:17:00"
+---
+apiVersion: kubeinbox.io.kubeinbox.io/v1alpha1
+kind: Ec2CostOptimizer
+metadata:
+  name: ec2costoptimizer-sample-scheduled-2
+  namespace: kubeinbox
+spec:
+  instance_ids:
+    - i-0b7ff2259ac5f2d9e
+  operation: "Stop"
+  window_type: "Scheduled"
+  start_time_window: "05:16:00"
+  end_time_window: "06:17:00"

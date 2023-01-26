@@ -6,39 +6,39 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/go-logr/logr"
 )
 
-func runCMD(executeCMD string) error {
+func runCMD(logger logr.Logger, executeCMD string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	log.Infof("running command %s", executeCMD)
+	logger.V(1).Info("running command", "cmd", executeCMD)
 	cmd := exec.CommandContext(ctx, "sh", "-c", executeCMD)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.WithError(err).Errorf("unable to start instances, error: %v", cmd.Stderr)
+		logger.Error(err, "unable to start instances", "stderr", cmd.Stderr)
 		return err
 	}
-	log.Debugf("output  output=%s", string(out))
+	logger.V(2).Info("cmd output", "stdout", string(out))
 	return nil
 }
 
-func StartEc2Instance(instanceIDs []string) error {
+func StartEc2Instance(logger logr.Logger, instanceIDs []string) error {
 	toBeExecuted := "aws ec2 start-instances --instance-ids " + strings.Join(instanceIDs, ",")
-	if err := runCMD(toBeExecuted); err != nil {
+	if err := runCMD(logger, toBeExecuted); err != nil {
 		return err
 	}
-	log.Info("successfully started ec2 instances")
+	logger.Info("successfully started ec2 instances")
 	return nil
 }
 
-func StopEc2Instance(instanceIDs []string) error {
+func StopEc2Instance(logger logr.Logger, instanceIDs []string) error {
 	toBeExecuted := "aws ec2 stop-instances --instance-ids " + strings.Join(instanceIDs, ",")
-	if err := runCMD(toBeExecuted); err != nil {
+	if err := runCMD(logger, toBeExecuted); err != nil {
 		return err
 	}
-	log.Info("successfully stopped ec2 instances")
+	logger.Info("successfully stopped ec2 instances")
 	return nil
 }
 

@@ -15,15 +15,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	runtimezap "sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	kubeinboxiov1alpha1 "github.com/KubeInBox/aws-utility-controller/api/v1alpha1"
+	"github.com/KubeInBox/aws-utility-controller/controllers"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	kubeinboxiov1alpha1 "github.com/KubeInBox/aws-utility-controller/api/v1alpha1"
-	"github.com/KubeInBox/aws-utility-controller/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -48,13 +50,16 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
+
+	opts := runtimezap.Options{
+		Development: false,
+		Encoder:     zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		Level:       zapcore.DebugLevel,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(runtimezap.New(runtimezap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -83,7 +88,6 @@ func main() {
 	if err = (&controllers.Ec2CostOptimizerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Logger: newLogger(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Ec2CostOptimizer")
 		os.Exit(1)

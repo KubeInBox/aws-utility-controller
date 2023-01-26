@@ -2,15 +2,16 @@ package controllers
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"time"
 
 	costoptimizerv1alpha1 "github.com/KubeInBox/aws-utility-controller/api/v1alpha1"
 	"github.com/KubeInBox/aws-utility-controller/pkg/utils"
 
-	"github.com/sirupsen/logrus"
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -20,7 +21,7 @@ import (
 type Ec2CostOptimizerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Logger *logrus.Logger
+	logger logr.Logger
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -39,11 +40,10 @@ func (r *Ec2CostOptimizerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logr := r.Logger.WithContext(ctx).WithField("object", req.NamespacedName)
+	r.logger = log.FromContext(ctx)
 	// your logic here
-	logger.WithValues("object", req.NamespacedName)
-	logger.Info("Reconciling Ec2CostOptimizer ...")
+	r.logger.WithValues("object", req.NamespacedName)
+	r.logger.Info("Reconciling Ec2CostOptimizer ...")
 
 	ec2CostOptimizer := &costoptimizerv1alpha1.Ec2CostOptimizer{}
 	err := r.Get(context.TODO(), req.NamespacedName, ec2CostOptimizer)
@@ -51,29 +51,31 @@ func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if errors.IsNotFound(err) {
 			// object not found, could have been deleted after
 			// reconcile request, hence don't requeue
-			logger.V(1).Info("object %s not found")
+			r.logger.V(1).Info("object not found")
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "unable to fetch object ")
+		r.logger.Error(err, "unable to fetch object ")
 		// error reading the object, requeue the request
 		return ctrl.Result{}, err
 	}
 
 	switch ec2CostOptimizer.Spec.WindowType {
 	case costoptimizerv1alpha1.OnDemand:
-		logr.Infof("Handling ondemand ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
+		r.logger.V(1).Info("Handling ondemand ec2 with operation", "type", ec2CostOptimizer.Spec.Operation)
+		//r.Patch()
 		if err = r.handleOnDemandEc2Oprn(ec2CostOptimizer); err != nil {
-			logger.V(1).Error(err, "error processing onDemand ec2 operation")
+			r.logger.Error(err, "error processing onDemand ec2 operation")
 			return ctrl.Result{}, err
 		}
 	case costoptimizerv1alpha1.Scheduled:
-		logr.Infof("Handling scheduled ec2 with operation type %v ", ec2CostOptimizer.Spec.Operation)
-		if err = r.handleScheduledEc2Oprn(ec2CostOptimizer); err != nil {
-			logger.V(1).Error(err, "error processing onDemand ec2 operation")
-			return ctrl.Result{}, err
+		r.logger.V(1).Info("Handling scheduled ec2 with operation", "type", ec2CostOptimizer.Spec.Operation)
+		err = r.handleScheduledEc2Oprn(ec2CostOptimizer)
+		if err != nil {
+			r.logger.Error(err, "error processing scheduled ec2 operation")
 		}
+		return ctrl.Result{RequeueAfter: wait.Jitter(30*time.Second, 0.5)}, err
 	default:
-		logger.V(1).Info("invalid window type specified")
+		r.logger.V(1).Info("invalid window type specified")
 	}
 
 	// TODO: update status
@@ -86,34 +88,36 @@ func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 func (r *Ec2CostOptimizerReconciler) handleOnDemandEc2Oprn(ec2CostOptimizer *costoptimizerv1alpha1.Ec2CostOptimizer) error {
 	switch ec2CostOptimizer.Spec.Operation {
 	case costoptimizerv1alpha1.Start:
-		if err := utils.StartEc2Instance(ec2CostOptimizer.Spec.InstanceIDs); err != nil {
+		if err := utils.StartEc2Instance(r.logger, ec2CostOptimizer.Spec.InstanceIDs); err != nil {
 			return err
 		}
 	case costoptimizerv1alpha1.Stop:
-		if err := utils.StopEc2Instance(ec2CostOptimizer.Spec.InstanceIDs); err != nil {
+		if err := utils.StopEc2Instance(r.logger, ec2CostOptimizer.Spec.InstanceIDs); err != nil {
 			return err
 		}
 	default:
-		logrus.Infof("invalid ec2 operation type specified for resource %s/%s", ec2CostOptimizer.GetNamespace(), ec2CostOptimizer.GetName())
+		r.logger.Info("specified invalid ec2 operation type")
 	}
 	return nil
 }
 
 func (r *Ec2CostOptimizerReconciler) handleScheduledEc2Oprn(ec2CostOptimizer *costoptimizerv1alpha1.Ec2CostOptimizer) error {
-	if !isInTimeWindow(ec2CostOptimizer.Spec.StartTimeWindow, ec2CostOptimizer.Spec.EndTimeWindow) {
-		r.Logger.Debugf("ignoring as it is not in scheduled time window")
+	if !isInTimeWindow(r.logger, ec2CostOptimizer.Spec.StartTimeWindow, ec2CostOptimizer.Spec.EndTimeWindow) {
+		r.logger.Info("ignoring as it is not in scheduled time window")
+		// perform counter operation, if it was stopped in time window then start or vice-versa.
 		return nil
 	}
-	r.Logger.Infof("current time is within the time window, starting operations")
+
+	r.logger.Info("current time is within the time window, starting operations")
 
 	// start/stop if it is in given time window
-	if err := r.handleScheduledEc2Oprn(ec2CostOptimizer); err != nil {
+	if err := r.handleOnDemandEc2Oprn(ec2CostOptimizer); err != nil {
 		return err
 	}
 	return nil
 }
 
-func isInTimeWindow(startTimeWindow, endTimeWindow string) bool {
+func isInTimeWindow(logger logr.Logger, startTimeWindow, endTimeWindow string) bool {
 	if startTimeWindow == "" || endTimeWindow == "" {
 		return false
 	}
@@ -121,22 +125,31 @@ func isInTimeWindow(startTimeWindow, endTimeWindow string) bool {
 	// load current IST time
 	loc, err := time.LoadLocation("Asia/Kolkata")
 	if err != nil {
-		logrus.Errorf("failed to load timezone location %v", err)
+		logger.Error(err, "failed to load timezone location")
 		return false
 	}
 	now := time.Now().In(loc)
 
-	// return true if it is a weekends
-	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-		return true
+	// parse timestamp from current IST time
+	timeFormat := "15:04:05"
+	currTimeFormat := fmt.Sprintf("%02d:%02d:%02d", now.Hour(), now.Minute(), now.Second())
+	currentTime, err := time.Parse(timeFormat, currTimeFormat)
+	if err != nil {
+		logger.Error(err, "failed to parse current time")
+		return false
+	}
+	startTime, err := time.Parse(timeFormat, startTimeWindow)
+	if err != nil {
+		logger.Error(err, "invalid start time")
+		return false
+	}
+	endTime, err := time.Parse(timeFormat, endTimeWindow)
+	if err != nil {
+		logger.Error(err, "invalid end time")
+		return false
 	}
 
-	// parse timestamp from current IST time
-	timeFormat := "15:04:00"
-	currentTime, _ := time.Parse(timeFormat, strconv.Itoa(now.Hour())+":"+strconv.Itoa(now.Minute()))
-	startTime, _ := time.Parse(timeFormat, startTimeWindow)
-	endTime, _ := time.Parse(timeFormat, endTimeWindow)
-
+	logger.V(1).Info("", "curr time", currentTime, "start time", startTime, "end time", endTime)
 	if currentTime.After(startTime) && currentTime.Before(endTime) {
 		return true
 	}

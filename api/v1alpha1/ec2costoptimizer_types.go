@@ -5,7 +5,7 @@ import (
 )
 
 // Ec2OperationType operation that has to be performed on the instance.
-// +kubebuilder:validation:Enum=Start;Stopped
+// +kubebuilder:validation:Enum=Start;Stop
 type Ec2OperationType string
 
 const (
@@ -43,7 +43,7 @@ type Ec2CostOptimizerSpec struct {
 type Ec2CostOptimizerStatus struct {
 	// InstanceID is unique identifier for aws-ec2 instance.
 	InstanceID string `json:"instance_id,omitempty"`
-	// Status represents current state of machine, RUNNING, STOPPED.
+	// Status represents current state of operation, InProgress, Failed, Completed.
 	State string `json:"state,omitempty"`
 }
 
