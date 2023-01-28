@@ -15,6 +15,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+)
+
+const (
+	inProgress      = "InProgress"
+	failed          = "Failed"
+	complete        = "Completed"
+	inTimeWindow    = "InTimeWindow"
+	outOfTimeWindow = "OutOfTimeWindow"
 )
 
 // Ec2CostOptimizerReconciler reconciles a Ec2CostOptimizer object
@@ -26,7 +35,9 @@ type Ec2CostOptimizerReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Ec2CostOptimizerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	pred := predicate.GenerationChangedPredicate{}
 	return ctrl.NewControllerManagedBy(mgr).
+		WithEventFilter(pred).
 		For(&costoptimizerv1alpha1.Ec2CostOptimizer{}).
 		Complete(r)
 }
@@ -61,19 +72,25 @@ func (r *Ec2CostOptimizerReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	switch ec2CostOptimizer.Spec.WindowType {
 	case costoptimizerv1alpha1.OnDemand:
-		r.logger.V(1).Info("Handling ondemand ec2 with operation", "type", ec2CostOptimizer.Spec.Operation)
-		//r.Patch()
+		if ec2CostOptimizer.Status.State == fmt.Sprintf("%s/%s", costoptimizerv1alpha1.OnDemand, complete) {
+			r.logger.V(1).Info("ignoring already processed onDemand object")
+			return ctrl.Result{}, nil
+		}
+		r.logger.V(1).Info("Handling onDemand ec2 with operation", "type", ec2CostOptimizer.Spec.Operation)
+		r.UpdateStatus(ctx, ec2CostOptimizer, inProgress)
 		if err = r.handleOnDemandEc2Oprn(ec2CostOptimizer); err != nil {
 			r.logger.Error(err, "error processing onDemand ec2 operation")
+			r.UpdateStatus(ctx, ec2CostOptimizer, failed)
 			return ctrl.Result{}, err
 		}
+		r.UpdateStatus(ctx, ec2CostOptimizer, complete)
 	case costoptimizerv1alpha1.Scheduled:
 		r.logger.V(1).Info("Handling scheduled ec2 with operation", "type", ec2CostOptimizer.Spec.Operation)
-		err = r.handleScheduledEc2Oprn(ec2CostOptimizer)
+		err = r.handleScheduledEc2Oprn(ctx, ec2CostOptimizer)
 		if err != nil {
 			r.logger.Error(err, "error processing scheduled ec2 operation")
 		}
-		return ctrl.Result{RequeueAfter: wait.Jitter(30*time.Second, 0.5)}, err
+		return ctrl.Result{RequeueAfter: wait.Jitter(1*time.Minute, 0.5)}, err
 	default:
 		r.logger.V(1).Info("invalid window type specified")
 	}
@@ -101,13 +118,14 @@ func (r *Ec2CostOptimizerReconciler) handleOnDemandEc2Oprn(ec2CostOptimizer *cos
 	return nil
 }
 
-func (r *Ec2CostOptimizerReconciler) handleScheduledEc2Oprn(ec2CostOptimizer *costoptimizerv1alpha1.Ec2CostOptimizer) error {
+func (r *Ec2CostOptimizerReconciler) handleScheduledEc2Oprn(ctx context.Context, ec2CostOptimizer *costoptimizerv1alpha1.Ec2CostOptimizer) error {
 	if !isInTimeWindow(r.logger, ec2CostOptimizer.Spec.StartTimeWindow, ec2CostOptimizer.Spec.EndTimeWindow) {
+		r.UpdateStatus(ctx, ec2CostOptimizer, outOfTimeWindow)
 		r.logger.Info("ignoring as it is not in scheduled time window")
 		// perform counter operation, if it was stopped in time window then start or vice-versa.
 		return nil
 	}
-
+	r.UpdateStatus(ctx, ec2CostOptimizer, inTimeWindow)
 	r.logger.Info("current time is within the time window, starting operations")
 
 	// start/stop if it is in given time window
@@ -115,6 +133,31 @@ func (r *Ec2CostOptimizerReconciler) handleScheduledEc2Oprn(ec2CostOptimizer *co
 		return err
 	}
 	return nil
+}
+
+func (r *Ec2CostOptimizerReconciler) UpdateStatus(ctx context.Context, obj *costoptimizerv1alpha1.Ec2CostOptimizer, msg string) {
+	// create patches for the object and its possible status
+	statusPatch := client.MergeFrom(obj.DeepCopy())
+
+	obj.Status.State = fmt.Sprintf("%s/%s", obj.Spec.WindowType, msg)
+	data, err := statusPatch.Data(obj)
+	if err != nil {
+		return
+	}
+
+	// no change in the patch we get length of 2.
+	if len(data) <= 2 {
+		return
+	}
+
+	// patch status of a given object.
+	err = r.Status().Patch(ctx, obj, statusPatch)
+	if err != nil {
+		r.logger.Error(err, "failed to update status")
+		return
+	}
+
+	r.logger.Info(fmt.Sprintf("updated status with state %s", obj.Status.State))
 }
 
 func isInTimeWindow(logger logr.Logger, startTimeWindow, endTimeWindow string) bool {
@@ -149,7 +192,7 @@ func isInTimeWindow(logger logr.Logger, startTimeWindow, endTimeWindow string) b
 		return false
 	}
 
-	logger.V(1).Info("", "curr time", currentTime, "start time", startTime, "end time", endTime)
+	logger.V(1).Info("", "curr time", currTimeFormat, "start time", startTimeWindow, "end time", endTimeWindow)
 	if currentTime.After(startTime) && currentTime.Before(endTime) {
 		return true
 	}
